@@ -28,21 +28,6 @@ INSTALAÇÃO
 
        pip install -r requirements.txt
 
-3. Não é necessária NENHUMA chave de API: o modelo neural roda localmente
-   na CPU. Na primeira execução, o modelo (~470 MB) é baixado
-   automaticamente do Hugging Face Hub. Opcionalmente, defina a variável
-   de ambiente HF_TOKEN com um token gratuito do Hugging Face para
-   downloads mais rápidos (não é obrigatório):
-
-       Windows (PowerShell):  $env:HF_TOKEN = "hf_..."
-       Linux/macOS:           export HF_TOKEN="hf_..."
-
-OBSERVAÇÕES (Windows): em algumas instalações, importar pandas antes de
-torch causa erro de DLL (c10.dll). Os scripts já importam torch primeiro;
-mantenha essa ordem se criar novos scripts. Para usar o NOTEBOOK também é
-necessário pyzmq >= 26 (versões antigas quebram o torch dentro do kernel
-Jupyter): pip install -U pyzmq
-
 COMO REPRODUZIR OS RESULTADOS
 -----------------------------
 Opção A — Notebook (recomendado para a apresentação):

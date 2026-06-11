@@ -2,14 +2,6 @@ T2 — Matching de Produtos (Aprendizado de Máquina)
 Prof. Me. Otávio Parraga
 ====================================================
 
-INTEGRANTES
------------
-- <NOME COMPLETO 1> — matrícula <XXXXXX>
-- <NOME COMPLETO 2> — matrícula <XXXXXX>
-(preencher com os integrantes do grupo)
-
-DESCRIÇÃO
----------
 Sistema de matching de produtos: dado um texto de consulta heterogêneo
 (ex.: "FANTA LARANJA 2L C/6"), encontra o produto correspondente no
 catálogo normalizado (Dados/catalog.csv, 14.206 produtos).
@@ -21,15 +13,15 @@ Duas abordagens implementadas:
       sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2, nas
       variantes busca densa pura e híbrida (BM25 top-50 -> re-rank neural).
 
-INSTALAÇÃO
-----------
+-----------------------------------------------------------
+
 1. Python 3.10+ (testado com 3.11).
 2. Instalar as dependências:
 
        pip install -r requirements.txt
 
-COMO REPRODUZIR OS RESULTADOS
------------------------------
+-----------------------------------------------------------
+
 Opção A — Notebook (recomendado para a apresentação):
     abrir T2_Matching_Produtos.ipynb (Jupyter/VS Code) a partir da raiz
     do projeto e executar todas as células (Run All). O notebook é
@@ -67,7 +59,7 @@ Opção B — Scripts, a partir da raiz do projeto (a pasta com src/ e Dados/):
        python src/fill_queries.py
 
 ESTRUTURA DO CÓDIGO
--------------------
+-----------------------------------------------------------
 T2_Matching_Produtos.ipynb  notebook autocontido com todo o pipeline
 src/preprocess.py         pré-processamento textual (normalização)
 src/bm25.py               implementação própria do BM25 (Okapi)
@@ -86,7 +78,7 @@ relatorio.html            fonte do relatório; para regenerar o PDF após editar
                             --print-to-pdf="relatorio.pdf" "relatorio.html"
 
 MÉTRICAS FINAIS (queries_test.csv, 250 queries)
------------------------------------------------
+--------------------------------------------------------------
 Abordagem 1 — TF-IDF char (3-5):  P@1=0.992  MRR@5=0.996  R@5=1.000
 Abordagem 1 — BM25:               P@1=0.988  MRR@5=0.992  R@5=1.000
 Abordagem 2 — híbrida (BM25+NN):  P@1=0.944  MRR@5=0.962  R@5=0.984

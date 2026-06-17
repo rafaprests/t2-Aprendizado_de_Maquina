@@ -1,0 +1,346 @@
+================================================================================
+VERIFICACAO DO PROJETO vs ENUNCIADO + INSIGHTS (Resultados e Desenvolvimento)
+T2 - Matching de Produtos - Aprendizado de Maquina (Prof. Otavio Parraga)
+================================================================================
+================================================================================
+PARTE 2 - OS RESULTADOS (quais sao, o que representam, como foram obtidos)
+================================================================================
+
+2.1 QUAIS SAO (numeros finais)
+--------------------------------------------------------------------------------
+VALIDACAO (queries_val.csv, 250 queries) - usada para DECIDIR variantes:
+  Variante                              P@1     MRR@5   R@5     Tempo
+  TF-IDF palavras (1-2)                 0.952   0.972   1.000   ~1 s
+  TF-IDF caracteres (3-5)               0.972   0.983   1.000   ~7-12 s
+  BM25 (k1=1.5, b=0.75)                 0.964   0.980   1.000   ~0.2 s
+  Neural densa                          0.920   0.945   0.984   ~7 s
+  Neural hibrida (BM25 top50 -> rerank) 0.924   0.952   0.992   ~7 s
+
+TESTE (queries_test.csv, 250 queries) - metricas DEFINITIVAS:
+  Abordagem                    P@1     MRR@5   R@5     Custo            Complex.
+  Ab.1 TF-IDF caracteres       0.992   0.996   1.000   Gratuito (CPU)   Baixa
+  Ab.1 BM25 (proprio)          0.988   0.992   1.000   Gratuito (CPU)   Baixa
+  Ab.1 TF-IDF palavras         0.932   0.958   0.996   Gratuito (CPU)   Baixa
+  Ab.2 Neural densa            0.944   0.962   0.984   Gratuito (local) Media
+  Ab.2 Neural hibrida          0.944   0.962   0.984   Gratuito (local) Media
+
+VENCEDOR: a abordagem CLASSICA (TF-IDF de caracteres) supera a neural no teste
+(0.992 vs 0.944 em P@1). O BM25 proprio fica em 0.988 com ~1 ms por query.
+
+2.2 O QUE CADA METRICA REPRESENTA
+--------------------------------------------------------------------------------
+P@1 (Precision@1): fracao de queries em que o produto CORRETO foi o 1o colocado.
+  E a metrica principal de um sistema de matching que devolve uma resposta.
+  0.992 = de 250 queries, 248 tiveram o produto certo em 1o lugar (so 2 erros).
+
+MRR@5 (Mean Reciprocal Rank, K=5): media de 1/posicao do produto correto. Da
+  credito parcial quando o correto nao foi 1o mas apareceu em 2o..5o lugar.
+  MRR proximo de P@1 (0.996 vs 0.992) significa que, nos poucos casos em que
+  errou o 1o, o correto estava logo em 2o.
+
+R@5 (Recall@5): fracao de queries em que o correto apareceu entre os 5 primeiros.
+  R@5 = 1.000 significa que o produto certo SEMPRE esteve no top-5 (no classico):
+  o sistema "sabe" a resposta; o que falta e so desempatar variantes no topo.
+
+Leitura conjunta: P@1 alto + R@5=1.000 => o gargalo nao e "achar" o produto, e
+distinguir variantes quase identicas (multipack, sabor, cor, tamanho).
+
+2.3 COMO OS RESULTADOS FORAM OBTIDOS (o pipeline, passo a passo)
+--------------------------------------------------------------------------------
+(1) PRE-PROCESSAMENTO (src/preprocess.py), aplicado a query E ao nome do catalogo
+    (nome + marca, quando a marca nao esta no nome):
+      - minusculas, remocao de acentos;
+      - "s/" -> "sem", "c/" -> "com" (antes de tirar pontuacao);
+      - remove embalagem: c/6, cx12, fd6, "6 und"; multipack mantem o unitario
+        (12x350ml -> 350ml);
+      - canoniza unidades: 2L/2 litros -> 2l; 350 ML -> 350ml; 15 GR -> 15g;
+      - expande abreviacoes NAO ambiguas (cerv->cerveja, refrig->refrigerante);
+      - remove pontuacao e stopwords PT.
+    DECISAO-CHAVE: "sem" NAO e removida (e discriminativa: "sem acucar",
+    "sem gas"); "com" e removida (sua ausencia nao gera confusao).
+
+(2) ABORDAGEM 1 - representacao + similaridade:
+      - TF-IDF: vetores esparsos (palavras 1-2 ou char_wb 3-5), similaridade de
+        cosseno contra os 14.206 produtos; char 3-5 e robusto a erro de grafia.
+      - BM25 (implementacao propria, src/bm25.py): indice invertido,
+        IDF*saturacao(k1)*normalizacao por tamanho(b). ~1 ms/query.
+
+(3) ABORDAGEM 2 - embeddings:
+      - densa: codifica os 14.206 produtos uma vez (cache em disco), embeddings
+        normalizados, cosseno = produto interno;
+      - hibrida: BM25 pre-filtra top-50 e o modelo neural re-ranqueia (reduz
+        custo e melhora qualidade, como sugere o enunciado).
+
+(4) RANQUEAMENTO: top-5 por query com scores; o 1o vira a predicao principal.
+    DESEMPATE DETERMINISTICO: empates de score sao resolvidos pela ordem do
+    catalogo (np.argsort kind="stable"). Isso e o que garante que os numeros
+    sejam reproduziveis (sem isso, P@1 oscila ate ~0.8 ponto conforme o
+    algoritmo de ordenacao).
+
+(5) AVALIACAO (src/evaluate.py): aplica o ranker a cada query, compara com o
+    matched_id e calcula P@1/MRR@5/R@5 + tempo. Variantes escolhidas SO na
+    validacao; o teste so foi tocado no final.
+
+2.4 VERIFICACAO DE REPRODUTIBILIDADE (rodei localmente em 17/06/2026)
+--------------------------------------------------------------------------------
+Re-executei AS DUAS abordagens nesta maquina. Resultados obtidos:
+
+  ABORDAGEM 1 (src/approach1_classic.py):
+    VAL  -> tfidf_word 0.952 | tfidf_char 0.972 | bm25 0.964   (P@1)
+    TEST -> tfidf_char 0.992 (MRR 0.996, R5 1.000) | bm25 0.988 | tfidf_word 0.932
+
+  ABORDAGEM 2 (src/approach2_deep.py, apos instalar torch/sentence-transformers):
+    VAL  -> dense P@1=0.920 (MRR 0.945, R5 0.984) | hybrid 0.924 (0.952, 0.992)
+    TEST -> dense P@1=0.944 (MRR 0.962, R5 0.984) | hybrid 0.944 (0.962, 0.984)
+
+=> TODOS os numeros BATEM EXATAMENTE com as tabelas 4.1 e 4.2 do relatorio.
+   As duas abordagens sao 100% reproduziveis. Tambem confirmei os numeros da
+   exploracao citados no relatorio: 14.206 produtos, 1.833 marcas, 29 nomes
+   duplicados (em 59 linhas) e val/test com os 250 gold_ids dentro do catalogo
+   (logo, val/test NAO tem NO_MATCH).
+
+   Nota: a 1a execucao da Ab.2 baixou o modelo (~470MB) e codificou o catalogo
+   (~49 s nesta maquina), gravando cache em cache/; execucoes seguintes
+   reutilizam o cache. As variantes dense e hybrid EMPATAM no teste (0.944)
+   porque, nas 250 queries de teste, o BM25 traz o produto correto entre os
+   top-50 candidatos sempre que a busca densa pura tambem o traria - ou seja, o
+   pre-filtro nao descarta nenhum acerto que a densa faria.
+
+2.5 ANALISE QUALITATIVA - O QUE OS ERROS REVELAM
+--------------------------------------------------------------------------------
+ACERTOS: ambas resolvem com folga queries descritivas com a mesma base lexical
+  do catalogo, mesmo com ordem de palavras trocada (score ~1.0 no classico).
+
+ERROS DA Ab.1 (so 2 no teste):
+  - "Fralda Pampers Confort Sec G 128 Unidades" -> previu "60 unidades": o
+    pre-proc. remove "<n> unidades" como embalagem, mas aqui a contagem ERA o
+    atributo distintivo. (efeito colateral de uma regra boa na media)
+  - "Espumante ... Brut" branco vs rose: variante/cor.
+
+ERROS DA Ab.2 (14 no teste), em 3 padroes:
+  - variante/sabor errado (9): "Maracuja Tang" -> "manga Tang"; embeddings
+    aproximam sabores;
+  - tamanho/quantidade errado (4): "Salsicha Viena Ceratti 500g" -> "...Perdigao
+    500g" (acertou o peso, errou a marca);
+  - categoria por proximidade semantica (1): "Pipoca para Microondas YOKI" ->
+    "Saco hermetico para ... microondas" (o token "microondas" dominou).
+
+COMPARACAO DIRETA (teste): em 12 queries o classico acertou e o neural errou;
+  em NENHUMA o neural acertou onde o classico errou; 2 erros em comum.
+  => neste catalogo (vocabulario controlado), o classico domina.
+
+CASOS AMBIGUOS: 29 nomes duplicados sob ids diferentes (mesmo nome, EANs
+  distintos) sao ambiguidade irredutivel; o desempate por ordem do catalogo
+  torna o resultado determinístico. Tambem ha pares unitario x multipack com
+  score quase empatado (delta ~0.000).
+
+CASOS NO_MATCH: val/test nao tem NO_MATCH, mas queries.csv tem familias inteiras
+  ausentes do catalogo (Qualita, Taeq, Swift, Carnilove, Mormaii...). Como
+  nenhuma abordagem tem rejeicao nativa, ela sempre aponta algo. INSIGHT: o
+  score do top-1 separa os regimes - matches corretos no estilo descritivo tem
+  score medio 0.96 (p5 ~0.88), enquanto NO_MATCH verificados caem para ~0.41-0.45
+  (TF-IDF). Logo, um LIMIAR de rejeicao e viavel (mas deve ser calibrado por
+  estilo de query, porque no estilo abreviado um match correto pode cair a ~0.73).
+
+2.6 PREENCHIMENTO DE queries.csv
+--------------------------------------------------------------------------------
+src/fill_queries.py aplica a variante vencedora (TF-IDF char 3-5) as 16.441
+queries sem rotulo e grava results/queries_preenchido.csv (text, matched_id,
+score do top-1). O Dados/queries.csv original NAO e modificado. Isso atende ao
+"matched_id a ser preenchido pelo grupo" da descricao dos dados.
+
+
+================================================================================
+PARTE 3 - INSIGHTS SOBRE O DESENVOLVIMENTO
+================================================================================
+
+ORGANIZACAO / ENGENHARIA
+  - Codigo modular e limpo: preprocess / bm25 / evaluate reaproveitados pelos
+    dois pipelines; cada script tem CLI (--split, --method/--variant) e docstring.
+  - Notebook autocontido (T2_Matching_Produtos.ipynb, 36 celulas) cobre todo o
+    pipeline (exploracao -> pre-proc -> 2 abordagens -> val/test -> qualitativa
+    -> NO_MATCH -> preenchimento), ideal para a apresentacao.
+  - Reprodutibilidade levada a serio: desempate estavel + cache de embeddings.
+
+DECISOES TECNICAS QUE FIZERAM DIFERENCA
+  - O PRE-PROCESSAMENTO domina o resultado. O proprio relatorio mostra a ablacao:
+    sem pre-proc., a neural cai de P@1 0.920 para 0.520 na validacao (~40 pontos).
+    E o que traduz o jargao do pedido (C/6, 12X350ML, CERV) para o vocabulario
+    do catalogo.
+  - char n-grams (3-5) > palavras: robustez a abreviacao/grafia explica por que
+    tfidf_char (0.992) supera tfidf_word (0.932) no teste.
+  - BM25 implementado do ZERO (sem rank-bm25/elasticsearch): atende a expectativa
+    de "implementado pelo grupo" e ainda e o mais rapido (~0.2 s / 250 queries).
+  - Hibrido BM25->neural: aplica exatamente a recomendacao do enunciado de
+    cascatear (filtra candidatos antes da rede), barateando a Ab.2.
+  - Acrescentar brand_name ao documento so quando a marca nao esta no nome
+    (ablacao mostra que nao muda metrica, mas e defensavel).
+
+DELIMITACAO (feito pelo grupo x reaproveitado) - bem explicitada no relatorio:
+  - Feito: pre-proc., BM25, os 2 pipelines e variantes, metricas, exploracao,
+    analises e preenchimento.
+  - Reaproveitado: TfidfVectorizer + cosine_similarity (scikit-learn) e o modelo
+    pre-treinado MiniLM via sentence-transformers.
+
+DIFICULDADES REGISTRADAS (boa engenharia honesta)
+  - abreviacoes ambiguas (COND, SAB) deixadas de fora de proposito;
+  - remover "<n> unidades" apaga info essencial em fraldas (gerou 1 dos 2 erros
+    do classico);
+  - conflito de DLL pandas x torch no Windows resolvido fixando a ordem de import
+    (import torch antes de pandas) - documentado no codigo.
+
+PONTO ALTO CONCEITUAL
+  O trabalho conclui algo nao obvio e bem fundamentado: em catalogo com
+  vocabulario controlado, o metodo MAIS SIMPLES e tambem o MAIS PRECISO. O ganho
+  de um modelo neural maior seria marginal porque R@5 do classico ja e 1.000 - o
+  problema residual e de granularidade de atributos (quantidade/sabor/cor), que
+  se resolve com regras de negocio / extracao estruturada, nao com mais
+  capacidade de modelo.
+
+
+================================================================================
+PARTE 4 - PENDENCIAS A RESOLVER ANTES DA ENTREGA
+================================================================================
+
+[CRITICO] 1. NOMES E MATRICULAS DOS INTEGRANTES
+  Onde falta:
+    - README.txt: nao ha secao de integrantes;
+    - t2-LM.docx: linha "Nomes:" esta vazia;
+    - T2_Matching_Produtos.ipynb (celula 0): "**Integrantes:** _<preencher nomes
+      e matriculas>_".
+  Acao: preencher nome + matricula de todos (2 a 6 integrantes) nos 3 lugares.
+  O enunciado exige isso no README explicitamente.
+
+[RESOLVIDO nesta sessao] 2. SECAO "6. REFERENCIAS" DO RELATORIO
+  A bibliografia foi redigida e inserida na secao 6 do t2-LM.docx (mantendo o
+  estilo Calibri/justificado do documento; XML validado; backup feito durante a
+  edicao). As 6 entradas correspondem exatamente as citacoes do texto:
+    [1] Manning, Raghavan & Schutze - Introduction to Information Retrieval (2008)
+    [2] Salton & Buckley - Term-weighting approaches in IR (1988)
+    [3] Robertson & Zaragoza - The Probabilistic Relevance Framework: BM25 (2009)
+    [4] Vaswani et al. - Attention is all you need (2017)
+    [5] Devlin et al. - BERT (2019)
+    [6] Reimers & Gurevych - Sentence-BERT (2019)
+  Conferido: o texto cita [1,2], [3], [4], [5] e [6] (este p/ a biblioteca
+  Sentence-Transformers), entao a lista cobre todas as citacoes.
+
+[PARCIALMENTE RESOLVIDO] 3. README + FORMATO DO RELATORIO
+  - [OK] README.txt: removidas as mencoes a relatorio.pdf, relatorio.html e
+    tools/build_notebook.py (a secao ESTRUTURA DO CODIGO agora lista so o que
+    existe). Verificado por busca: nenhuma mencao residual a esses arquivos.
+  - [PENDENTE p/ entrega] relatorio.pdf segue deletado; o relatorio vive no
+    t2-LM.docx. Acao: exportar o .docx para PDF (depois de preencher os nomes) e
+    submeter no Moodle. O enunciado aceita "PDF ou PPT".
+
+[RESOLVIDO nesta sessao] 4. REPRODUTIBILIDADE DA ABORDAGEM 2
+  torch (2.12.0+cpu) e sentence-transformers (5.6.0) foram instalados. A Ab.2 foi
+  re-executada e suas metricas conferidas (ver Parte 2.4). O primeiro run baixa o
+  modelo (~470MB) e cacheia os embeddings do catalogo em cache/.
+  Nota de compatibilidade: o ambiente tem numpy 2.x / pandas 3.x / sklearn 1.8
+  (mais novos que o requirements.txt: pandas>=1.5 etc.); rodou sem problemas,
+  mas vale fixar/testar versoes para o avaliador.
+
+[MENOR] 5. NOTA SOBRE API KEY NO README
+  O enunciado pede instrucao de "como configurar a variavel de ambiente da API
+  key utilizada". Como o projeto usa modelo LOCAL (sem API), basta acrescentar 1
+  linha no README dizendo "nao e necessaria API key - o modelo roda localmente".
+
+--------------------------------------------------------------------------------
+CONCLUSAO DA VERIFICACAO
+--------------------------------------------------------------------------------
+Tecnicamente o trabalho esta MUITO BOM e em conformidade com o enunciado:
+duas abordagens completas, metricas corretas e REPRODUZIVEIS (re-executei as
+duas e bateram exatamente), analise qualitativa rica (incluindo ambiguos e
+NO_MATCH) e um relatorio agora completo nas 6 secoes. Apos as correcoes desta
+sessao, a UNICA pendencia que depende do grupo e preencher nomes+matriculas; na
+entrega, recomenda-se ainda exportar o relatorio para PDF. Nada disso exige
+mexer no codigo.
+
+================================================================================
+ATUALIZACOES DESTA SESSAO (17/06/2026)
+================================================================================
+1. README.txt: removidas as referencias aos arquivos inexistentes relatorio.pdf,
+   relatorio.html e tools/build_notebook.py (secao ESTRUTURA DO CODIGO).
+   Verificado por busca: nenhuma mencao residual.
+
+2. Relatorio t2-LM.docx: redigida e inserida a bibliografia na secao "6.
+   Referencias" (antes vazia), com 6 entradas [1]..[6] correspondentes as
+   citacoes do texto (Manning et al.; Salton & Buckley; Robertson & Zaragoza;
+   Vaswani et al.; Devlin et al.; Reimers & Gurevych). Estilo do documento
+   preservado e XML validado.
+
+3. Dependencias: instalados torch 2.12.0+cpu e sentence-transformers 5.6.0.
+
+4. Abordagem 2 re-executada (val e test); metricas conferidas contra o relatorio
+   (batem exatamente) - ver Parte 2.4. Foram (re)gerados os results/detalhes_*.json
+   (arquivos locais, ignorados pelo git).
+
+PENDENTE (somente o grupo pode/deve fazer):
+   - Preencher nome e matricula dos integrantes em README.txt, no t2-LM.docx
+     (linha "Nomes:") e no notebook (1a celula).
+   - Exportar o t2-LM.docx para PDF e submeter no Moodle (enunciado pede PDF/PPT).
+================================================================================
+PARTE 1 - CONFORMIDADE COM O ENUNCIADO (checklist item a item)
+================================================================================
+
+1.1 ETAPAS ESPERADAS (enunciado, pag. 3)
+--------------------------------------------------------------------------------
+[OK] 1. Exploracao dos dados ......... src/explore.py + notebook secao 1
+        (distribuicoes, marcas, "categorias", abreviacoes, ambiguidades)
+[OK] 2. Abordagem 1 - NLP Classico ... TF-IDF (palavra e char) E BM25; metricas
+        P@1, MRR@5, R@5 sobre queries_val.csv registradas
+[OK] 3. Abordagem 2 - Deep Learning .. embeddings (MiniLM multilingue), variantes
+        densa e hibrida; mesmas metricas sobre val
+[OK] 4. Comparacao das abordagens .... tabela com metricas + tempo + custo +
+        complexidade (relatorio 4.2) e discussao de tradeoffs (4.4)
+[OK] 5. Avaliacao final no teste ..... metricas definitivas sobre queries_test.csv
+[OK] 6. Analise qualitativa .......... acertos, erros (com diagnostico), casos
+        ambiguos E casos NO_MATCH (results/*.md + relatorio 4.3)
+[OK] 7. Relatorio e apresentacao ..... relatorio existe (com ressalvas, ver 1.5);
+        apresentacao e em sala (sem slides formais)
+
+1.2 ABORDAGEM 1 - REQUISITOS (pag. 3-4)
+--------------------------------------------------------------------------------
+Pre-processamento exigido (pag. 3) - todos cobertos em src/preprocess.py:
+[OK] Conversao para minusculas
+[OK] Remocao de pontuacao e caracteres especiais
+[OK] Remocao de stopwords em portugues (de, do, com, por...)
+[OK] Normalizacao de abreviacoes (ML->ml, L->litro, CERV->cerveja, etc.)
+[OK] Remocao de termos de embalagem (C/6, C/12, UND, CX, FD...)
+[OK] Representacao vetorial + similaridade (pediu "ao menos uma"; entregou DUAS:
+     TF-IDF+cosseno E BM25)
+Para cada query o pipeline: pre-processa -> calcula similaridade com TODO o
+catalogo -> retorna top-5 com scores -> registra o top-1 como predicao. [OK]
+
+1.3 ABORDAGEM 2 - REQUISITOS (pag. 4)
+--------------------------------------------------------------------------------
+[OK] Modelo de rede neural: sentence-transformers/paraphrase-multilingual-
+     MiniLM-L12-v2 (roda local, gratuito, sem API key)
+[OK] Embeddings semanticos + similaridade de cosseno (variante "densa")
+[OK] Estrategia hibrida recomendada no enunciado: BM25 filtra top-50 ->
+     re-rank neural (variante "hibrida")
+[N/A] Zero/Few-shot com LLM era ALTERNATIVA ("implemente ao menos uma");
+      o grupo optou por embeddings. Conforme. (Fica como melhoria futura.)
+
+1.4 METRICAS (pag. 5-6)
+--------------------------------------------------------------------------------
+[OK] P@1  - implementada corretamente (src/evaluate.py)
+[OK] MRR@5 - usa 1/rank, 0 se fora do top-5 (K=5), conforme a formula
+[OK] R@5  - acerto se o correto esta entre os 5 primeiros
+[OK] Protocolo val (desenvolvimento) x test (so no final) documentado e seguido
+
+1.5 ENTREGAVEIS (pag. 7)
+--------------------------------------------------------------------------------
+[FALTA] README com nome e matricula dos integrantes  -> AUSENTE (ver Parte 4)
+[OK]    README com passo a passo de instalacao/reproducao
+[N/A]   README "como configurar a API key": nao se aplica (modelo roda local,
+        sem API). Recomenda-se escrever 1 linha dizendo isso explicitamente.
+[OK]    Codigo-fonte completo com os 2 pipelines + script de avaliacao
+[PARC.] Relatorio: CONTEUDO COMPLETO no t2-LM.docx; falta so exportar para PDF
+        na entrega final (enunciado pede "PDF ou PPT"). 6 secoes exigidas:
+          [OK] 1. Referencial Teorico (TF-IDF, BM25, embeddings, cosseno, LLMs)
+          [OK] 2. Delimitacao do Desenvolvimento (feito x reaproveitado)
+          [OK] 3. Metodologia (exploracao, pre-proc., pipelines, val x test)
+          [OK] 4. Resultados e Analise (tabelas + qualitativa + tradeoffs)
+          [OK] 5. Conclusao, Melhorias e Dificuldades
+          [OK] 6. Referencias -> bibliografia [1]..[6] redigida nesta sessao

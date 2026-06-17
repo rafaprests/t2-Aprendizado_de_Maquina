@@ -70,12 +70,7 @@ src/explore.py            exploração dos dados
 src/qualitative.py        análise qualitativa (acertos/erros/ambíguos)
 src/run_no_match.py       probe de casos NO_MATCH
 src/fill_queries.py       preenchimento em lote de queries.csv
-tools/build_notebook.py   gera o notebook a partir dos módulos de src/
 results/                  saídas (top-5 por query, análises em Markdown)
-relatorio.pdf             relatório completo do trabalho
-relatorio.html            fonte do relatório; para regenerar o PDF após editar:
-                          msedge --headless=new --no-pdf-header-footer
-                            --print-to-pdf="relatorio.pdf" "relatorio.html"
 
 MÉTRICAS FINAIS (queries_test.csv, 250 queries)
 --------------------------------------------------------------

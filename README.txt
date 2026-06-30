@@ -4,7 +4,7 @@ Nomes e Matrículas:
 Bernardo Klein - 22103012 
 Bernardo Fiorese - 23102185 
 Bruno Almeida - 22180462 
-Bruno Roese 
+Bruno Roese - 24280180
 João Aiolfi - 22107503      
 Rafael Prestes - 22280060
 

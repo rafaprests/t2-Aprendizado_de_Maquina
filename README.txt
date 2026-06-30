@@ -1,23 +1,31 @@
 T2 — Matching de Produtos (Aprendizado de Máquina)
 Prof. Me. Otávio Parraga
+Nomes e Matrículas:
+Bernardo Klein - 22103012 
+Bernardo Fiorese - 23102185 
+Bruno Almeida - 22180462 
+Bruno Roese 
+João Aiolfi - 22107503      
+Rafael Prestes - 22280060
+
 ====================================================
 
 Sistema de matching de produtos: dado um texto de consulta heterogêneo
 (ex.: "FANTA LARANJA 2L C/6"), encontra o produto correspondente no
 catálogo normalizado (Dados/catalog.csv, 14.206 produtos).
 
-Duas abordagens implementadas:
+Duas abordagens principais — mais uma variante com LLM:
   Abordagem 1 (NLP clássico) — TF-IDF (palavras e n-gramas de caracteres)
       com similaridade de cosseno e BM25 (implementação própria).
   Abordagem 2 (Deep Learning) — embeddings semânticos com o modelo
       sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2, nas
       variantes busca densa pura e híbrida (BM25 top-50 -> re-rank neural).
-      Inclui ainda uma variante com LLM: re-rank por prompting zero-shot
+  Abordagem 3 - Inclui ainda uma variante com LLM: re-rank por prompting zero-shot
       e few-shot (BM25 top-10 -> Google Gemini escolhe o produto).
 
 -----------------------------------------------------------
 
-1. Python 3.10+ (testado com 3.11).
+1. Python 3.10+ (testado com 3.12).
 2. Instalar as dependências:
 
        pip install -r requirements.txt
@@ -98,5 +106,5 @@ Abordagem 2 — híbrida (BM25+NN):  P@1=0.944  MRR@5=0.962  R@5=0.984
 catálogo — ordenação estável; ver seção 3.3 do relatório)
 
 A variante LLM (zero/few-shot) é avaliada em amostra da validação (depende
-de API e do limite do free tier), não nas 250 do teste — ver
-results/comparacao_abordagens.md.
+de API e do limite do free tier), não nas 250 do teste — ver a Seção 4 do
+relatório.

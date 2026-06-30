@@ -3,6 +3,9 @@ numpy>=1.24
 scikit-learn>=1.3
 torch>=2.0
 sentence-transformers>=3.0
+# opcional: Abordagem 2 (parte B) — re-rank zero/few-shot via Google Gemini.
+# Sem este pacote (ou sem GEMINI_API_KEY) a Seção 6 do notebook é pulada.
+google-genai>=0.3
 # para executar o notebook (pyzmq antigo quebra o torch no kernel Jupyter):
 pyzmq>=26
 jupyter

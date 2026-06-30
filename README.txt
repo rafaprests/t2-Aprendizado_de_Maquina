@@ -12,6 +12,8 @@ Duas abordagens implementadas:
   Abordagem 2 (Deep Learning) — embeddings semânticos com o modelo
       sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2, nas
       variantes busca densa pura e híbrida (BM25 top-50 -> re-rank neural).
+      Inclui ainda uma variante com LLM: re-rank por prompting zero-shot
+      e few-shot (BM25 top-10 -> Google Gemini escolhe o produto).
 
 -----------------------------------------------------------
 
@@ -19,6 +21,16 @@ Duas abordagens implementadas:
 2. Instalar as dependências:
 
        pip install -r requirements.txt
+
+3. (Somente para a variante LLM da Abordagem 2) configurar a API key do
+   Google Gemini — obtenha uma chave gratuita em
+   https://aistudio.google.com/apikey e exporte-a como variável de ambiente:
+
+       export GEMINI_API_KEY="sua_chave"      # Linux/Mac
+       set GEMINI_API_KEY=sua_chave           # Windows CMD
+
+   Sem a chave (ou sem o pacote google-genai), apenas a variante LLM é
+   pulada; todo o restante (Abordagens 1 e 2-embeddings) roda normalmente.
 
 -----------------------------------------------------------
 
@@ -47,6 +59,10 @@ Opção B — Scripts, a partir da raiz do projeto (a pasta com src/ e Dados/):
    Ablação sem pré-processamento (apêndice do relatório):
        python src/approach2_deep.py --split val --raw-text
 
+   Variante LLM (zero/few-shot, requer GEMINI_API_KEY) — avaliada em
+   amostra por causa do limite de requisições do free tier:
+       python src/approach2_llm.py --split val --shot all --sample 15
+
 4. Análise qualitativa (gera results/analise_qualitativa_test.md):
        python src/qualitative.py --split test --classic tfidf_char --deep deep_hybrid
 
@@ -66,6 +82,7 @@ src/bm25.py               implementação própria do BM25 (Okapi)
 src/evaluate.py           métricas P@1, MRR@5 e R@5
 src/approach1_classic.py  Abordagem 1: TF-IDF (cosseno) e BM25
 src/approach2_deep.py     Abordagem 2: embeddings (dense e híbrido)
+src/approach2_llm.py      Abordagem 2 (variante LLM): re-rank zero/few-shot (Gemini)
 src/explore.py            exploração dos dados
 src/qualitative.py        análise qualitativa (acertos/erros/ambíguos)
 src/run_no_match.py       probe de casos NO_MATCH
@@ -79,3 +96,7 @@ Abordagem 1 — BM25:               P@1=0.988  MRR@5=0.992  R@5=1.000
 Abordagem 2 — híbrida (BM25+NN):  P@1=0.944  MRR@5=0.962  R@5=0.984
 (empates de score são resolvidos deterministicamente pela ordem do
 catálogo — ordenação estável; ver seção 3.3 do relatório)
+
+A variante LLM (zero/few-shot) é avaliada em amostra da validação (depende
+de API e do limite do free tier), não nas 250 do teste — ver
+results/comparacao_abordagens.md.
